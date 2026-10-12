@@ -3,4 +3,3 @@
 pub use super::chain_alerts::Entity as ChainAlerts;
 pub use super::chain_blocks::Entity as ChainBlocks;
 pub use super::chain_snapshots::Entity as ChainSnapshots;
-pub use super::posts::Entity as Posts;

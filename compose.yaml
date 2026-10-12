@@ -1,0 +1,121 @@
+# Catasterism companion: Postgres, one-shot migration, API, scheduler, and a
+# locked-down Apache reverse proxy. Only the proxy publishes a port.
+#
+#   cp .env.example .env    # fill it in
+#   docker compose up -d --build
+name: catasterism
+
+x-hardened: &hardened
+  restart: unless-stopped
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=16m,mode=1777"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+x-companion-env: &companion-env
+  LOCO_ENV: production
+  DATABASE_URL: postgres://catasterism:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/catasterism
+  HOST: ${PUBLIC_URL:-http://localhost:8080}
+  EXPLORER_URL: ${EXPLORER_URL:-https://explorer.catasterism.xyz}
+  COMPANION_ALERT_EMAIL: ${COMPANION_ALERT_EMAIL:?set COMPANION_ALERT_EMAIL in .env}
+  MAILGUN_API_KEY: ${MAILGUN_API_KEY:?set MAILGUN_API_KEY in .env}
+  MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:?set MAILGUN_DOMAIN in .env}
+  MAILGUN_FROM: ${MAILGUN_FROM:-}
+  MAILGUN_API_BASE_URL: ${MAILGUN_API_BASE_URL:-https://api.mailgun.net}
+  DB_AUTO_MIGRATE: "false"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      POSTGRES_USER: catasterism
+      POSTGRES_DB: catasterism
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catasterism -d catasterism"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Runs once per deploy and exits. The API and scheduler wait for it, so
+  # replicas never race to migrate.
+  migrate:
+    <<: *hardened
+    restart: "no"
+    build: .
+    image: catasterism-companion:local
+    command: ["db", "migrate"]
+    environment: *companion-env
+    healthcheck: { disable: true }
+    networks: [data]
+    depends_on:
+      db: { condition: service_healthy }
+
+  app:
+    <<: *hardened
+    image: catasterism-companion:local
+    pull_policy: never
+    command: ["start"]
+    environment: *companion-env
+    networks: [data, edge]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5150/_ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  # Exactly one. Two schedulers would double every poll and alert.
+  scheduler:
+    <<: *hardened
+    image: catasterism-companion:local
+    pull_policy: never
+    command: ["scheduler"]
+    environment: *companion-env
+    deploy: { replicas: 1 }
+    # The image's HTTP healthcheck does not apply: the scheduler serves nothing.
+    healthcheck: { disable: true }
+    networks: [data, edge]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  proxy:
+    <<: *hardened
+    image: httpd:2.4-alpine
+    user: "82:82" # www-data; Apache never runs as root here
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/apache/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./deploy/apache/rules.conf:/usr/local/apache2/conf/rules.conf:ro
+      - ./deploy/apache/robots.txt:/usr/local/apache2/static/robots.txt:ro
+    networks: [edge]
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header \"Host: $${SERVER_NAME}\" -U proxy-healthcheck http://127.0.0.1:8080/robots.txt"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+networks:
+  # No route out of this network: the database cannot reach the internet.
+  data:
+    internal: true
+  edge: {}
+
+volumes:
+  pgdata: {}

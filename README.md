@@ -131,6 +131,53 @@ deployment. Keep the scheduler at one replica and ensure each poll finishes
 within its one-minute interval; concurrent scheduler runs can duplicate poll
 records and alert attempts.
 
+## Docker Compose deployment
+
+```sh
+cp .env.example .env            # fill in; POSTGRES_PASSWORD: openssl rand -hex 24
+docker compose up -d --build
+```
+
+| Service | Role |
+|---|---|
+| `db` | Postgres 17 on an internal network with no route to the internet |
+| `migrate` | runs `db migrate` once per deploy; the app and scheduler wait for it |
+| `app` | the API and stats page; never published to the host |
+| `scheduler` | exactly one; polls the explorer every minute |
+| `proxy` | Apache 2.4, the only published port (`127.0.0.1:8080` by default) |
+
+Every Loco container runs as a non-root user with a read-only filesystem, all
+capabilities dropped, and `no-new-privileges`. Secrets come from `.env` and are
+never copied into the image.
+
+### The proxy refuses by default
+
+`deploy/apache/rules.conf` forwards only `/`, `/favicon.*` and
+`/api/chain/{status,snapshots,blocks}` (paging parameters only, `page_size` at
+most 100). Everything else gets a bare `403 Forbidden` and never reaches the app:
+scanner paths (`/.env`, `/wp-login.php`, `/.git`, ...), non-GET/HEAD methods,
+traversal and injection patterns, unknown `Host` headers, and clients whose
+User-Agent is empty, a crawler or SEO bot, a scripting library, `curl`/`wget`, a
+headless browser or a known scanner. Slow-request, header-size and URL-length
+limits are set in `httpd.conf`. Apache has no built-in rate limiting; put
+fail2ban or a CDN in front of it if you need that.
+
+Because crawlers are refused, search engines will not index the site and
+`robots.txt` says `Disallow: /`. To allow one, remove its name from the
+`bad_client` patterns in `rules.conf`. To `curl` the site yourself, send a
+browser-style `-A` header.
+
+### HTTPS
+
+```sh
+mkdir -p deploy/certs           # fullchain.pem and privkey.pem, readable by uid 82
+# .env: BIND_ADDR=0.0.0.0 HTTP_PORT=80 HTTPS_PORT=443
+#       SERVER_NAME=your-domain PUBLIC_URL=https://your-domain
+docker compose -f compose.yaml -f compose.tls.yaml up -d
+```
+
+Plain HTTP then answers with a 308 redirect, TLS 1.2+ only, with HSTS.
+
 ## Getting help
 
 Check out [a quick tour](https://loco.rs/docs/tutorials/the-tour/) or [build your first app](https://loco.rs/docs/tutorials/your-first-app/).

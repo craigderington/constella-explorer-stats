@@ -20,3 +20,6 @@ target/
 
 *.sqlite
 *.sqlite-*
+
+# TLS material
+deploy/certs/

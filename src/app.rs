@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use loco_rs::{
     app::{AppContext, Hooks, Initializer},
-    bgworker::{BackgroundWorker, Queue},
+    bgworker::Queue,
     boot::{create_app, BootResult, StartMode},
     config::Config,
     controller::AppRoutes,
@@ -13,12 +13,10 @@ use loco_rs::{
 use migration::Migrator;
 use std::path::Path;
 
-#[allow(unused_imports)]
 use crate::{
     controllers,
-    models::_entities::{chain_alerts, chain_blocks, chain_snapshots, posts},
+    models::_entities::{chain_alerts, chain_blocks, chain_snapshots},
     tasks,
-    workers::downloader::DownloadWorker,
 };
 
 pub struct App;
@@ -55,8 +53,7 @@ impl Hooks for App {
             .add_route(controllers::chain::routes())
             .add_route(controllers::home::routes())
     }
-    async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {
-        queue.register(DownloadWorker::build(ctx)).await?;
+    async fn connect_workers(_ctx: &AppContext, _queue: &Queue) -> Result<()> {
         Ok(())
     }
 
@@ -66,7 +63,6 @@ impl Hooks for App {
         // tasks-inject (do not remove)
     }
     async fn truncate(ctx: &AppContext) -> Result<()> {
-        truncate_table(&ctx.db, posts::Entity).await?;
         truncate_table(&ctx.db, chain_alerts::Entity).await?;
         truncate_table(&ctx.db, chain_snapshots::Entity).await?;
         truncate_table(&ctx.db, chain_blocks::Entity).await?;

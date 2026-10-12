@@ -1,5 +1,3 @@
-mod posts;
-
 mod chain_snapshots;
 
 mod chain_blocks;

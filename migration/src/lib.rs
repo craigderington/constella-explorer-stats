@@ -8,6 +8,7 @@ mod m20261003_213820_chain_snapshots;
 mod m20261003_214239_chain_blocks;
 mod m20261008_152453_chain_alerts;
 mod m20261010_153838_remove_users_table;
+mod m20261012_171617_remove_posts_table;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -20,6 +21,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261003_214239_chain_blocks::Migration),
             Box::new(m20261008_152453_chain_alerts::Migration),
             Box::new(m20261010_153838_remove_users_table::Migration),
+            Box::new(m20261012_171617_remove_posts_table::Migration),
             // inject-above (do not remove this comment)
         ]
     }

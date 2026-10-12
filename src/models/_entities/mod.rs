@@ -5,4 +5,3 @@ pub mod prelude;
 pub mod chain_alerts;
 pub mod chain_blocks;
 pub mod chain_snapshots;
-pub mod posts;
