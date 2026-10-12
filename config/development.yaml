@@ -1,0 +1,94 @@
+# Loco configuration file documentation
+
+# Application logging configuration
+logger:
+  # Enable or disable logging.
+  enable: true
+  # Enable pretty backtrace (sets RUST_BACKTRACE=1)
+  pretty_backtrace: true
+  # Log level, options: trace, debug, info, warn or error.
+  level: <%= get_env(name="LOG_LEVEL", default="debug") %>
+  # Define the logging format. options: compact, pretty or json
+  format: compact
+  # By default the logger has filtering only logs that came from your code or logs that came from `loco` framework. to see all third party libraries
+  # Uncomment the line below to override to see all third party libraries you can enable this config and override the logger filters.
+  # override_filter: trace
+
+# Web server configuration
+server:
+  # Port on which the server will listen. the server binding is 0.0.0.0:{PORT}
+  # Every Loco app defaults to 5150, so a second one on this machine will
+  # collide. Override without editing this file: `PORT=5151 cargo loco start`.
+  port: <%= get_env(name="PORT", default="5150") %>
+  # Binding for the server (which interface to bind to)
+  binding: <%= get_env(name="BINDING", default="localhost") %>
+  # The public host name for this service.
+  host: http://localhost
+  # Out of the box middleware configuration. to disable middleware you can changed the `enable` field to `false` of comment the middleware block
+  middlewares:
+
+# Worker Configuration
+workers:
+  # specifies the worker mode. Options:
+  #   - BackgroundQueue - Workers operate asynchronously in the background, processing queued.
+  #   - ForegroundBlocking - Workers operate in the foreground and block until tasks are completed.
+  #   - BackgroundAsync - Workers operate asynchronously in the background, processing tasks with async capabilities.
+  mode: BackgroundAsync
+
+  
+
+# Initializers Configuration
+# initializers:
+#  oauth2:
+#    authorization_code: # Authorization code grant type
+#      - client_identifier: google # Identifier for the OAuth2 provider. Replace 'google' with your provider's name if different, must be unique within the oauth2 config.
+#        ... other fields
+
+# Database Configuration
+database:
+  # Database connection URI
+  uri: <%= get_env(name="DATABASE_URL", default="sqlite://loco-sample_development.sqlite?mode=rwc") %>
+  # When enabled, the sql query will be logged.
+  enable_logging: <%= get_env(name="DB_LOGGING", default="false") %>
+  # Set the timeout duration when acquiring a connection.
+  connect_timeout: <%= get_env(name="DB_CONNECT_TIMEOUT", default="500") %>
+  # Set the idle duration before closing a connection.
+  idle_timeout: <%= get_env(name="DB_IDLE_TIMEOUT", default="500") %>
+  # Minimum number of connections for a pool.
+  min_connections: <%= get_env(name="DB_MIN_CONNECTIONS", default="1") %>
+  # Maximum number of connections for a pool.
+  max_connections: <%= get_env(name="DB_MAX_CONNECTIONS", default="1") %>
+  # Run migration up when application loaded
+  auto_migrate: true
+  # Truncate database when application loaded. This is a dangerous operation, make sure that you using this flag only on dev environments or test mode
+  dangerously_truncate: false
+  # Recreating schema when application loaded.  This is a dangerous operation, make sure that you using this flag only on dev environments or test mode
+  dangerously_recreate: false
+
+# Companion API settings — typed at the edge in src/data/explorer.rs.
+settings:
+  # Base URL of the Catasterism explorer JSON API.
+  explorer_url: <%= get_env(name="EXPLORER_URL", default="https://explorer.catasterism.xyz") %>
+  # Where chain-alert mail goes. The default is a placeholder — set the env
+  # var (or put a real address in development.local.yaml) before relying on
+  # alerts.
+  alert_email: <%= get_env(name="COMPANION_ALERT_EMAIL", default="ops@example.com") %>
+  mailgun:
+    api_key: <%= get_env(name="MAILGUN_API_KEY", default="") %>
+    domain: <%= get_env(name="MAILGUN_DOMAIN", default="") %>
+    from: <%= get_env(name="MAILGUN_FROM", default="") %>
+    api_base_url: <%= get_env(name="MAILGUN_API_BASE_URL", default="https://api.mailgun.net") %>
+  # A snapshot older than this — by poll age or by the explorer's own
+  # updated_at age — counts as stale.
+  stale_after_secs: 300
+
+# Scheduler: recurring work is always a task plus an entry here; the
+# scheduler shells the task out and contains no logic itself. Note the cron
+# expression starts with SECONDS.
+scheduler:
+  output: silent
+  jobs:
+    chain_poll:
+      run: "chain_poll"
+      schedule: "0 * * * * *" # every minute at :00
+      run_on_start: true

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>Catasterism Stats</title>
+<style>
+  :root {
+    --bg: #fafaf8; --surface: #fff; --text: #1b1d22; --muted: #62666f; --line: #e3e3de;
+    --ok: #1a7f4b; --warn: #a15c00; --bad: #b3261e; --idle: #62666f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101215; --surface: #181b20; --text: #e8e9ec; --muted: #9096a1; --line: #2a2e35;
+      --ok: #4cc38a; --warn: #f0b24a; --bad: #ff7b72; --idle: #9096a1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 64rem; margin: 0 auto; padding: 2rem 1rem 3rem; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 .75rem; }
+  .status { font-weight: 600; padding: .15rem .7rem; border-radius: 999px;
+    border: 1px solid currentColor; font-size: .9rem; }
+  .healthy { color: var(--ok); } .degraded { color: var(--bad); }
+  .stale { color: var(--warn); } .nodata { color: var(--idle); }
+  .note { color: var(--muted); font-size: .9rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .75rem; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .6rem .8rem; }
+  .stat dt { color: var(--muted); font-size: .8rem; }
+  .stat dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: .45rem .75rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: 0; }
+  td.err { white-space: normal; color: var(--bad); }
+  .yes { color: var(--ok); } .no { color: var(--bad); }
+  footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Catasterism Stats</h1>
+    <span class="status {{ state | escape }}">{{ headline | escape }}</span>
+  </header>
+
+  {% if state == "stale" %}
+  <p class="note">The latest poll, or the explorer's own view, is older than {{ stale_after_secs | escape }} seconds.</p>
+  {% endif %}
+
+  {% if stats | length == 0 %}
+  <p class="note">The companion has not recorded a poll yet. Run <code>cargo loco task chain_poll</code> or start the scheduler.</p>
+  {% else %}
+  <dl class="grid">
+    {% for s in stats %}
+    <div class="stat"><dt>{{ s.label | escape }}</dt><dd>{{ s.value | escape }}</dd></div>
+    {% endfor %}
+  </dl>
+  {% endif %}
+
+  <h2>Recent blocks</h2>
+  {% if blocks | length == 0 %}
+  <p class="note">No blocks stored yet.</p>
+  {% else %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Height</th><th>Time</th><th>Constellation</th><th>Bits</th><th>Miner</th><th>Certified</th><th>Main chain</th></tr></thead>
+    <tbody>
+    {% for b in blocks %}
+    <tr>
+      <td>{{ b.height | escape }}</td><td>{{ b.time | escape }}</td><td>{{ b.tuple | escape }}</td>
+      <td>{{ b.bits | escape }}</td><td>{{ b.miner | escape }}</td>
+      <td class="{% if b.certified %}yes{% else %}no{% endif %}">{% if b.certified %}yes{% else %}no{% endif %}</td>
+      <td class="{% if b.main_chain %}yes{% else %}no{% endif %}">{% if b.main_chain %}yes{% else %}orphan{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
+  <h2>Recent polls</h2>
+  {% if polls | length == 0 %}
+  <p class="note">No polls recorded yet.</p>
+  {% else %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Polled</th><th>Result</th><th>Height</th><th>Ledger</th><th>Peer</th><th>Error</th></tr></thead>
+    <tbody>
+    {% for p in polls %}
+    <tr>
+      <td>{{ p.at | escape }}</td>
+      <td class="{% if p.ok %}yes{% else %}no{% endif %}">{% if p.ok %}ok{% else %}failed{% endif %}</td>
+      <td>{{ p.height | escape }}</td><td>{{ p.ledger | escape }}</td><td>{{ p.peer | escape }}</td>
+      <td class="err">{{ p.error | escape }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
+  <footer>
+    Refreshes every minute · JSON: <a href="/api/chain/status">status</a>,
+    <a href="/api/chain/snapshots">snapshots</a>, <a href="/api/chain/blocks">blocks</a>
+  </footer>
+</main>
+</body>
+</html>
