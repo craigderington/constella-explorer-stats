@@ -181,3 +181,22 @@ Plain HTTP then answers with a 308 redirect, TLS 1.2+ only, with HSTS.
 ## Getting help
 
 Check out [a quick tour](https://loco.rs/docs/tutorials/the-tour/) or [build your first app](https://loco.rs/docs/tutorials/your-first-app/).
+
+### Host Apache in front of the stack (stats.catasterism.xyz)
+
+`deploy/apache-host/` holds a public-facing Apache 2.4 for Debian/Ubuntu that
+terminates TLS and forwards an allowlist of URLs to the compose proxy on
+`127.0.0.1:8088`:
+
+```sh
+sudo a2enmod ssl proxy proxy_http headers rewrite reqtimeout socache_shmcb
+sudo cp deploy/apache-host/hardening.conf /etc/apache2/conf-available/stats-hardening.conf
+sudo cp deploy/apache-host/stats.catasterism.xyz.conf /etc/apache2/sites-available/
+sudo mkdir -p /var/www/acme
+# certificate first (webroot /var/www/acme), then:
+sudo a2enconf stats-hardening && sudo a2ensite stats.catasterism.xyz
+sudo apachectl configtest && sudo systemctl reload apache2
+```
+
+Set `SERVER_NAME=stats.catasterism.xyz`, `BIND_ADDR=127.0.0.1` and
+`HTTP_PORT=8088` in `.env` (the compose proxy rejects any other Host header).
